@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Allanna - Chatbot</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var listaTchau = ["Tchau! Até a próxima.", "Tchau! Espero te ver de novo!", "Espero ter ajudado!"];
+            var perguntasERespostas = {};
+
+            function processarEntradaUsuario(entradaUsuario) {
+                var lemmatizer = new WordNetLemmatizer();
+                entradaUsuario = entradaUsuario.toLowerCase();
+                var palavras = entradaUsuario.split(" ");
+                var palavrasSemStopwords = palavras.filter(function (palavra) {
+                    return !stopwords.includes(palavra);
+                });
+                var palavrasLemmatizadas = palavrasSemStopwords.map(function (palavra) {
+                    return lemmatizer.lemmatize(palavra);
+                });
+                return palavrasLemmatizadas.join(" ");
+            }
+
+            function encontrarMelhorResposta(perguntaUsuario) {
+                var perguntasConhecidas = Object.keys(perguntasERespostas);
+                perguntasConhecidas.push("bye");
+                perguntasConhecidas.push(perguntaUsuario);
+
+                var tfidfVectorizer = new TfidfVectorizer();
+                var tfidfMatrix = tfidfVectorizer.fit_transform(perguntasConhecidas);
+
+                var similaridades = cosineSimilarity(tfidfMatrix[-1], tfidfMatrix);
+                var similaridadesIndices = similaridades.argsort()[0].reverse();
+
+                var melhorResposta = "";
+                var similaridadeMaxima = 0;
+
+                for (var i = 0; i < similaridadesIndices.length; i++) {
+                    if (i === similaridadesIndices.length - 1) {
+                        continue;
+                    }
+                    if (similaridades[0][i] > similaridadeMaxima) {
+                        similaridadeMaxima = similaridades[0][i];
+                        melhorResposta = random.choice(perguntasERespostas[perguntasConhecidas[i]]);
+                    }
+                }
+
+                if (similaridadeMaxima === 0) {
+                    melhorResposta = "Desculpe, não entendi a pergunta";
+                }
+
+                return melhorResposta;
+            }
+
+            function salvarPerguntasRespostasArquivo(nomeArquivo) {
+                var texto = "";
+                Object.entries(perguntasERespostas).forEach(function ([pergunta, respostas]) {
+                    texto += pergunta + "\n";
+                    respostas.forEach(function (resposta) {
+                        texto += resposta + "\n";
+                    });
+                    texto += "\n";
+                });
+
+                var blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
+                saveAs(blob, nomeArquivo);
+            }
+
+            function carregarPerguntasRespostasArquivo(nomeArquivo) {
+                perguntasERespostas = {};
+                var rawFile = new XMLHttpRequest();
+                rawFile.open("GET", nomeArquivo, false);
+                rawFile.onreadystatechange = function () {
+                    if (rawFile.readyState === 4) {
+                        if (rawFile.status === 200 || rawFile.status == 0) {
+                            var linhas = rawFile.responseText.split("\n");
+                            var perguntaAtual = "";
+                            linhas.forEach(function (linha) {
+                                linha = linha.trim();
+                                if (linha !== "") {
+                                    if (perguntaAtual === "") {
+                                        perguntaAtual = linha;
+                                        perguntasERespostas[perguntaAtual] = [];
+                                    } else {
+                                        perguntasERes
+
+postas[perguntaAtual].push(linha);
+                                    }
+                                } else {
+                                    perguntaAtual = "";
+                                }
+                            });
+                        }
+                    }
+                }
+                rawFile.send(null);
+            }
+
+            // Função para processar a entrada do usuário e obter a resposta
+            function processarEntrada() {
+                var entradaUsuario = $("#entrada").val();
+
+                if (entradaUsuario.toLowerCase() === "bye") {
+                    var resposta = "Allanna: " + listaTchau[Math.floor(Math.random() * listaTchau.length)];
+                    $("#respostas").append("<p>" + resposta + "</p>");
+                } else if (entradaUsuario.toLowerCase() === "add") {
+                    var pergunta = prompt("Digite a pergunta que deseja adicionar:");
+                    var resposta = prompt("Digite a primeira resposta correspondente:");
+                    perguntasERespostas[pergunta] = [resposta];
+                    while (true) {
+                        var adicionarOutraResposta = prompt("Deseja adicionar outra resposta? (S/N):");
+                        if (adicionarOutraResposta.toLowerCase() === "s") {
+                            resposta = prompt("Digite a próxima resposta:");
+                            perguntasERespostas[pergunta].push(resposta);
+                        } else {
+                            break;
+                        }
+                    }
+                    alert("Pergunta e respostas adicionadas com sucesso!");
+                } else if (entradaUsuario.toLowerCase() === "salvar") {
+                    var nomeArquivo = prompt("Digite o nome do arquivo para salvar:");
+                    salvarPerguntasRespostasArquivo(nomeArquivo);
+                    alert("Perguntas e respostas salvas com sucesso!");
+                } else if (entradaUsuario.toLowerCase() === "carregar") {
+                    var nomeArquivo = prompt("Digite o nome do arquivo para carregar:");
+                    carregarPerguntasRespostasArquivo(nomeArquivo);
+                    alert("Perguntas e respostas carregadas com sucesso!");
+                } else {
+                    var entradaUsuarioProcessada = processarEntradaUsuario(entradaUsuario);
+                    var resposta = encontrarMelhorResposta(entradaUsuarioProcessada);
+                    $("#respostas").append("<p>Allanna: " + resposta + "</p>");
+                }
+
+                $("#entrada").val("");
+            }
+
+            $("#formulario").on("submit", function (event) {
+                event.preventDefault();
+                processarEntrada();
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Allanna - Chatbot</h1>
+    <div id="respostas"></div>
+    <form id="formulario">
+        <input type="text" id="entrada" required>
+        <input type="submit" value="Enviar">
+    </form>
+</body>
+</html>
